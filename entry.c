@@ -2,6 +2,8 @@
 #include <stddef.h>
 #include <stdbool.h>
 
+#define BIT(x) (1UL << (x))
+
 void delay(uint32_t delay_val){
   volatile uint32_t i = 0;
   while(i <= delay_val){
@@ -22,7 +24,7 @@ void setup_gpio(){
   volatile uint8_t* nvic_ipr1 = (volatile uint8_t*)0xE000E400;
 
   // Step 1: Turn on the Clock for the Port A
-  *rcc_apb2enr |= (1 << 2); // Set the second bit of the register to turn on the clock for Port A
+  *rcc_apb2enr |= BIT(2); // Set the second bit of the register to turn on the clock for Port A
 
   // Step 2: Clear the Configuration for the GPIOA Port 0
   *gpioa_crl &= ~(0xF); // Clear the Configuration for the GPIOA Port 0
