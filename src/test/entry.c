@@ -1,9 +1,8 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
+#include "stm32f103xb.h"
 
-#define BIT(x) (1UL << (x))
-#define SET_BIT(reg,x) ((reg) |= BIT((x)))
 
 void delay(uint32_t delay_val){
   volatile uint32_t i = 0;
@@ -24,34 +23,39 @@ void setup_gpio(){
   volatile uint32_t* nvic_iser = (volatile uint32_t*)0xE000E100;
   volatile uint8_t* nvic_ipr1 = (volatile uint8_t*)0xE000E400;
 
-  // Step 1: Turn on the Clock for the Port A
-  SET_BIT(*rcc_apb2enr, 2);
-  //*rcc_apb2enr |= BIT(2); // Set the second bit of the register to turn on the clock for Port A
+  // Turn on the Clock for the Port A and Port C
+  SET_BIT(RCC_REGS->APB2ENR, 2);
+  SET_BIT(RCC_REGS->APB2ENR, 4);
 
-  // Step 2: Clear the Configuration for the GPIOA Port 0
-  *gpioa_crl &= ~(0xF); // Clear the Configuration for the GPIOA Port 0
-  *gpioa_crl &= ~(0xF << 4);
+  // Clear the Configuration for the GPIOA Port 0 and Port 1 amd GPIOC Port 13
+  GPIOA->CRL &= ~(0xF);
+  GPIOA->CRL &= ~(0xF << 4);
+  GPIOC->CRH &= ~(0xF << 20);
 
-  // Step 3: Set the Configuration for the GPIOA Port 0 to 0001: Output Mode, 10MHz Max and Push-Pull Mode
-  *gpioa_crl |= (0x1);
-  *gpioa_crl |= (0x8 << 4);
+  // Set the Configuration for the GPIOA Port 0 to 0001: Output Mode, 10MHz Max and Push-Pull Mode
+  // Set the Configuration for the GPIOA Port 1 to 1000: Input Mode, Push-Pull 
+  // Set the Configuration for the GPIOC Port 13 to 0001: Output Mode, 10MHz Max and Push-Pull Mode
+  SET_BIT(GPIOA->CRL, 0);
+  SET_BIT(GPIOA->CRL, 7);
+  SET_BIT(GPIOC->CRH, 20);
 
-  // Step 4: Write to the GPIOA ODR Register
-  *gpioa_odr |= (0x1);
-  *gpioa_odr |= (0x1 << 1);
+  // Write to the GPIOA ODR Register to set the default state of the setup of input or output. High for Now.
+  SET_BIT(GPIOA->ODR, 0);
+  SET_BIT(GPIOA->ODR, 1);
+  SET_BIT(GPIOC->ODR, 13);
 
   // Configuring the AFIO for Interrupts
   // Enabling the AFIO Clock
-  *rcc_apb2enr |= (0x1);
+  SET_BIT(RCC_REGS->APB2ENR, 1);
 
   // Turn on the EXT1 Line for PA1
-  *afio_exticr1 &= ~(0xF << 4);
+  AFIO->EXTICR[1] &= ~(0xF << 4);
 
   // Unmask the Interrupt for the EXT1
-  *exti_imr |= (0x1 << 1);
+  SET_BIT(EXTI->IMR, 1);
 
   // Set the Type of the Interrupts to FTSR (Falling Edge Trigger)
-  *exti_ftsr |= (0x1 << 1);
+  SET_BIT(EXTI->FTSR, 1);
 
   // Configure the NVIC
   // Set the 7th bit of ISER to 1;
@@ -62,48 +66,55 @@ void setup_gpio(){
 }
 
 void main(){
-    // 1. Enable the clock for GPIO Port C (Bit 4 of APB2ENR)
-    *(volatile uint32_t *)0x40021018 |= (1 << 4);
+  // 1. Enable the clock for GPIO Port C (Bit 4 of APB2ENR)
+  *(volatile uint32_t *)0x40021018 |= (1 << 4);
 
-    volatile uint32_t* led_conf = (volatile uint32_t*)0x4001100C;
-    volatile uint32_t* rcc_cr = (volatile uint32_t*)0x40021000;
-    volatile uint32_t* rcc_cfg = (volatile uint32_t*)0x40021004;
-    volatile uint32_t* gpioa_odr = (volatile uint32_t*)0x4001080C;
-    volatile uint32_t* gpioa_idr = (volatile uint32_t*)0x40010808;
+  volatile uint32_t* led_conf = (volatile uint32_t*)0x4001100C;
+  volatile uint32_t* gpioa_odr = (volatile uint32_t*)0x4001080C;
+  volatile uint32_t* gpioa_idr = (volatile uint32_t*)0x40010808;
 
-    // 2. Configure PC13 as an output pin (Bits 20-23 of GPIOC_CRH)
-    *(volatile uint32_t *)0x40011004 &= ~(0xF << 20); // Clear bits
-    *(volatile uint32_t *)0x40011004 |= (0x2 << 20);  // Output mode
-    // 3. Turn the LED ON by pulling PC13 LOW (Bit 13 of GPIOC_ODR)
-    *rcc_cr |= 1; // Turn on the HSION, The High Speed Internal Oscillator
-    while(!((*rcc_cr >> 1) & 1));
-    *led_conf &= ~(1 << 13);
-    *rcc_cfg &= ~(1 << 16); // Set the PLL Source as the Internal High Speed Oscillator
-    *rcc_cfg &= ~(0xF << 18); // Set the PLL Multiplication as 2
-    *rcc_cfg |= (0x2 << 18);
-    *rcc_cr |= (1 << 24); // Turn on the PLL
-    while(1){
-      if((*rcc_cr >> 25) & 1){
-        //*led_conf &= ~(1 << 13);
-        break;
-      }
-    } 
-    *rcc_cfg &= ~0x3;
-    *rcc_cfg |= 0x2; // Switch System Clock
-    while (((*rcc_cfg >> 2) & 0x3) != 0x2);
+  // 2. Configure PC13 as an output pin (Bits 20-23 of GPIOC_CRH)
+  *(volatile uint32_t *)0x40011004 &= ~(0xF << 20); // Clear bits
+  *(volatile uint32_t *)0x40011004 |= (0x2 << 20);  // Output mode
+  // 3. Turn the LED ON by pulling PC13 LOW (Bit 13 of GPIOC_ODR)
 
+  // Turn on the HSION, The High Speed Internal Oscillator
+  SET_BIT(RCC_REGS->CR,0); 
 
-    setup_gpio();
+  // Check if the HSIRDY bit is SET
+  while(!(GET_BIT(RCC_REGS->CR,1)));
 
-    while(1){
-      *gpioa_odr ^= (0x1);
-      if((*gpioa_idr >> 1) & 0x1){
-        *led_conf &= ~(1 << 13);
-      }
-      else{
-        *led_conf |= (1 << 13);
-      }
-      delay(1000000);
-    }
+  // Set the PLL Source as the Internal High Speed Oscillator
+  CLEAR_BIT(RCC_REGS->CFGR,16);
+
+  // Set the PLL Multiplication as 2
+  RCC_REGS->CFGR &= (0xF << 18); // Clear the bitfield
+  //RCC_REGS->CFGR |= (0x2 << 18); // Set the Multiplication factor as 2
+  SET_BIT(RCC_REGS->CFGR, 20);
+
+  // Turn on the PLL
+  SET_BIT(RCC_REGS->CR, 24);
+
+  // Blocking loop to check the PLLRDY
+  while(!(GET_BIT(RCC_REGS->CR,25)));
+
+  // Clear the SW Clocking two bits to choose the HSI by default
+  RCC_REGS->CFGR &= ~(0x3);
+
+  // Set the bit two to form the 10 to get the PLL as the clock source.
+  SET_BIT(RCC_REGS->CFGR,1);
+
+  setup_gpio();
+
+  while(1){
+    *gpioa_odr ^= (0x1);
+    // if((*gpioa_idr >> 1) & 0x1){
+    //   *led_conf &= ~(1 << 13);
+    // }
+    // else{
+    //   *led_conf |= (1 << 13);
+    // }
+    delay(1000000);
+  }
 }
 
