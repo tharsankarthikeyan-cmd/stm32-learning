@@ -63,4 +63,58 @@ Hence we have two Configuration steps
 
 - This itself will not trigger the interrupt we have some more registers for NVIC to Unmask and Set the Priority for.
 
+## Essential Registers to Configure NVIC(Nested Vectored Interrupt Controller)
+The configuration for the NVIC is not explicitly mentioned in RM008 for the STM32Fxxxx Series for MCU, Instead we require a different manual called PM0056 for accessing configuration registers.
+
+The NVIC has the following essential registers,
+
+### NVIC_ISERx(Nested Vectored Interrupt Controller Interrupt Set Enable Register)
+- This is the register used to unmask an interrupt line to generate interrupt for the CPU
+- For eg, The bit 6 of the NVIC_ISER1 is the register used to configure the EXTI0 and bit 7 of NVIC_ISER1 the EXTI1 line.
+
+- The register map of the NVIC looks like this, There are upto 81 configurable interrupts lines which can be used and priorities can be set.
+
+![NVIC_ISERx_MAP](../images/NVIC_ISER_MAP.png)
+
+- There are three usable ISERx register here, for each register, each bit represents a interrupt line. Each interrupt line can be given priority using 8 bit values in the NVIC_IPRx Register, More about this register will be discussed in the next section
+
+### NVIC_IPRx(Nested Vectored Interrupt Controller Interrupts Priority Register)
+
+- In a single NVIC_ISERx Register there are 32 bit, Which mean, each NVIC_IPRx register can control the Interrupt priority for only 32/8 = 4 Interrupts as configured in the NVIC_ISERx.
+
+- If there are 81 interrupt lines, There must be atleast 81*8 = 648 bits used, Dividing this by 32 we get, 648/32 = 20.25, Atleast there must be 21 NVIC_IPRx Registers(numbered from NVIC_IPR0 to NVIC_IPR20).
+
+- This can be observed in the below image from the manual, as given by STMMicroelectronics in PM0056.
+
+![NVIC_IPRx_MAP](../images/NVIC_IPRx_MAP.png)
+
+- Using this we have to configure the NVIC to get our interrupts
+
+> [!NOTE]
+> We read the RM008 Manual to understand which bit to manipulate to the properly EXTI lines to the proper NVIC_ISERx and NVIC_IPRx
+> Given below shows the respective bits to be modified in the NVIC_ISERx for each EXTI Lines
+
+![EXTI1 to NVIC_ISERx Map](../images/EXTI_TO_NVIC_MAP.png)
+
+## Steps to Configure the Interrupts
+- See the Position of each of the EXTI lines in the table, and that exact bit must be set in the NVIC_ISERx Table
+
+- After setting the corresponding bit in the NVIC_ISERx table we must look into setting the priorities of these interrupts so that the actual 'NESTED' action can happen, The more priority interrupt will be nested and handled first before the or while doing the lesser priority interrupt.
+
+- To configure the NVIC_IPRx we must first calculate where the 8 bit value which we are aiming for is there, We use a `volatile uint8_t*` and use indexes to access the correct 8 bit register.
+
+- Only the second MSR 4 bit are used to set the interrupts priority.
+- Lower the Priority value more the Priority.
+
+- Here is some sample code
+```c
+volatile uint8_t* nvic_iprx = (volatile uint8_t*)0xE000E400;
+// We can access the correct 8 bit for say the seventh interrupt line
+nvic_iprx[7] &= ~(0xF << 4);
+// In the above code we clear the MSR 4 bits of the bit field for the priority value to be the lowest hence making the priority more.
+```
+
+
+![IPR Bit Assignments](../images/IPR_BIT_ASSIGNMENT.png)
+
 
