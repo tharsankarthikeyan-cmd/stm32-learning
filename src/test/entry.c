@@ -11,6 +11,11 @@ void delay(uint32_t delay_val){
   }
 }
 
+void int_handler(){
+  CLEAR_BIT(GPIOC->ODR , 13);
+  SET_BIT(EXTI->PR, 1);
+}
+
 void setup_gpio(){
   // Define the required registers
   volatile uint32_t* nvic_iser = (volatile uint32_t*)0xE000E100;
@@ -89,7 +94,7 @@ void main(){
   setup_gpio();
 
   while(1){
-    GPIOA->ODR ^= (0x1);
+    GPIOA->ODR ^= (1UL);
     delay(1000000);
   }
 }

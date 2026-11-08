@@ -68,7 +68,7 @@ LoopFillZerobss:
 .section .text.Default_Handler,"ax",%progbits
 Default_Handler:
 Infinite_Loop:
-  b     Infinite_Loop
+  b .
   .size Default_Handler, .-Default_Handler
 
 /* Vector Table */
@@ -102,7 +102,7 @@ g_pfnVectors:
   .word   Default_Handler       /* Flash */
   .word   Default_Handler       /* RCC */
   .word   Default_Handler       /* EXTI Line 0 */
-  .word   Default_Handler       /* EXTI Line 1 */
+  .word   int_handler       /* EXTI Line 1 */
   .word   Default_Handler       /* EXTI Line 2 */
   .word   Default_Handler       /* EXTI Line 3 */
   .word   Default_Handler       /* EXTI Line 4 */
